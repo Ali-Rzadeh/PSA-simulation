@@ -19,7 +19,8 @@ def isotherm(y, P, T, isotherm_parameters):
     """
     R = 8.314
     
-    
+    #isotherm_parameters = [3.090000e+00, 2.540000e+00, 8.650000e-07, 2.630000e-08, -3.664121e+04 ,-3.569066e+04, 5.840000e+00 ,0.000000e+00 ,2.500000e-06, 0.000000e+00, -1.580000e+04, 0.000000e+00, 1.000000e+00] 
+
     # Unpack isotherm parameters
     q_s_b_1 = isotherm_parameters[0]
     q_s_d_1 = isotherm_parameters[2]
@@ -51,8 +52,8 @@ def isotherm(y, P, T, isotherm_parameters):
         input_1 = P_1
         input_2 = P_2
     elif input_mode == 1:
-        C_1 = y * P / (R / T)
-        C_2 = (1 - y) * P / (R / T)
+        C_1 = y * P / R / T
+        C_2 = (1 - y) * P / R / T
         input_1 = C_1
         input_2 = C_2
     else:

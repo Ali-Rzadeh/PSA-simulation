@@ -1,10 +1,9 @@
 import numpy as np
-from WENO import weno
+from WENO import weno, weno_python
 from Isotherm import isotherm
-
-print('Running func_coc_pressurization function...')    
+ 
 def func_coc_pressurization(t, state_vars, params, isotherm_params):
-    print('func_coc_pressurization called with t:', t)
+   # print('func_coc_pressurization called with t:', t)
     # === Extract parameters ===
     N = int(params[0])
     deltaU_1, deltaU_2 = params[1], params[2]
@@ -18,11 +17,11 @@ def func_coc_pressurization(t, state_vars, params, isotherm_params):
     y_0, tau = params[22], params[23]
 
     # === Unpack state variables ===
-    P = state_vars[0:N+2]
-    y = np.maximum(state_vars[N+2:2*N+4], 0)
-    x1 = np.maximum(state_vars[2*N+4:3*N+6], 0)
-    x2 = state_vars[3*N+6:4*N+8]
-    T = state_vars[4*N+8:5*N+10]
+    P = state_vars[0:N+2].copy()
+    y = np.maximum(state_vars[N+2:2*N+4], 0).copy()
+    x1 = np.maximum(state_vars[2*N+4:3*N+6], 0).copy()
+    x2 = np.maximum(state_vars[3*N+6:4*N+8],0).copy()
+    T = state_vars[4*N+8:5*N+10].copy()
 
 
     # Initialize output
@@ -65,19 +64,19 @@ def func_coc_pressurization(t, state_vars, params, isotherm_params):
     ro_g = P * P_0 / R / T / T_0
 
 ###################################################################
-    dP = P[1:] - P[:-1]
-    idx_f = np.where(dP <= 0)[0]
+    dP = P[1:N+2] - P[0:N+1]
+    idx_f = np.where(dP <= 0)[0]  
     idx_b = np.where(dP >  0)[0]
 
     # Pressure at walls
     Ph = np.zeros(N+1)
-    Ph_f = weno(P, 'upwind')
-    Ph_b = weno(P, 'downwind')
+    Ph_f = weno_python(P, 'upwind')
+    Ph_b = weno_python(P, 'downwind')
     Ph[idx_f] = Ph_f[idx_f]
     Ph[idx_b] = Ph_b[idx_b]
     Ph[0] = P[0]
     Ph[-1] = P[-1]
-    dpdz[1:N+1] = (Ph[1:] - Ph[:-1]) / dz
+    dpdz[1:N+1] = (Ph[1:N+1] - Ph[0:N]) / dz
 
     dpdzh[1:N] = (P[2:N+1] - P[1:N]) / dz
     dpdzh[0] = 2 * (P[1] - P[0]) / dz
@@ -85,44 +84,49 @@ def func_coc_pressurization(t, state_vars, params, isotherm_params):
 
     # Mole fraction at walls
     yh = np.zeros(N+1)
-    yh_f = weno(y, 'upwind')
-    yh_b = weno(y, 'downwind')
+    yh_f = weno_python(y, 'upwind')
+    yh_b = weno_python(y, 'downwind')
     yh[idx_f] = yh_f[idx_f]
     yh[idx_b] = yh_b[idx_b]
-    yh[0] = y[0] if P[0] > P[1] else y[1]
+
+    if P[0] > P[1]:
+        yh[0] = y[0]
+    else:   
+        yh[0] = y[1]
+
     yh[-1] = y[-1]
-    dydz[1:N+1] = (yh[1:] - yh[:-1]) / dz
+    dydz[1:N+1] = (yh[1:N+1] - yh[0:N]) / dz
 
     # Temperature at walls
     Th = np.zeros(N+1)
-    Th_f = weno(T, 'upwind')
-    Th_b = weno(T, 'downwind')
+    Th_f = weno_python(T, 'upwind')
+    Th_b = weno_python(T, 'downwind')
     Th[idx_f] = Th_f[idx_f]
     Th[idx_b] = Th_b[idx_b]
     Th[0] = T[0] if P[0] > P[1] else T[1]
     Th[-1] = T[-1]
-    dTdz[1:N+1] = (Th[1:] - Th[:-1]) / dz
+    dTdz[1:N+1] = (Th[1:N+1] - Th[0:N]) / dz
 
     # 2nd derivatives
     d2ydz2[2:N] = (y[3:N+1] + y[1:N-1] - 2*y[2:N]) / dz**2
     d2ydz2[1] = (y[2] - y[1]) / dz**2
-    d2ydz2[N+1] = (y[N] - y[N+1]) / dz**2
+    d2ydz2[N] = (y[N-1] - y[N]) / dz**2
 
     d2Tdz2[2:N] = (T[3:N+1] + T[1:N-1] - 2*T[2:N]) / dz**2
     d2Tdz2[1] = 4 * (Th[1] + T[0] - 2*T[1]) / dz**2
-    d2Tdz2[N+1] = 4 * (Th[N-1] + T[N+1] - 2*T[N]) / dz**2
+    d2Tdz2[N] = 4 * (Th[N-1] + T[N+1] - 2*T[N]) / dz**2
 
     # --- Velocity at walls (Ergun) ---
     ro_gh = (P_0 / R / T_0) * Ph / Th
     viscous_term = 150 * mu * (1 - epsilon)**2 / 4 / r_p**2 / epsilon**2
-    kinetic_term_h = (ro_gh * (MW_N2 + (MW_CO2-MW_N2)*yh)) * (1.75*(1-epsilon)/(2*r_p*epsilon)/2/r_p/epsilon)
+    kinetic_term_h = (ro_gh * (MW_N2 + (MW_CO2-MW_N2)*yh)) * (1.75*(1-epsilon)/(2*r_p*epsilon))
     vh = -np.sign(dpdzh) * (-viscous_term + (np.abs(viscous_term**2 + 4*kinetic_term_h*np.abs(dpdzh)*P_0/L)) **(0.5))/ 2/ kinetic_term_h/v_0
 
 
 
     q = isotherm(y, P*P_0, T*T_0, isotherm_params)
-    q_1 = q[:, 0] * ro_s
-    q_2 = q[:, 1] * ro_s
+    q_1 = q[0] * ro_s
+    q_2 = q[1] * ro_s
 
     k_1 = k_1_LDF * L / v_0
     k_2 = k_2_LDF * L / v_0
@@ -174,7 +178,7 @@ def func_coc_pressurization(t, state_vars, params, isotherm_params):
 
     # --- Boundary derivatives ---
     dPdt[0] = tau * L / v_0 * (1 - P[0])
-    dPdt[-1] = dPdt[-2]
+    dPdt[-1] = dPdt[N]
     dydt[0] = 0
     dydt[-1] = dydt[-2]
     dx1dt[0] = 0

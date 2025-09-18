@@ -1,13 +1,13 @@
 import numpy as np
 print("Importing process_input_parameters...")  
 def process_input_parameters(process_vars, material, N):
-    print("Processing input parameters...")
+    #print("Processing input parameters...")
     # --- Extract design variables
     L, P_0, ndot_0, t_ads, alpha, beta, P_I, P_l = process_vars
 
     # --- Material unpacking
     material_property = material[0]      # [rho_s, deltaU1, deltaU2]
-    isotherm_par = material[1]           # 13-element array
+    isotherm_par = material[1]       
 
     # --- Operating parameters
     t_pres      = 20
@@ -15,7 +15,7 @@ def process_input_parameters(process_vars, material, N):
     t_CoCdepres = 70
     t_LR        = t_ads
     t_HR        = t_LR
-    tau         = 0.5
+    tau         = 0.5   # dimensionless time for pressurization speed
     P_inlet     = 1.02
 
     # --- Gas properties

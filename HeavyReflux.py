@@ -2,7 +2,6 @@ import numpy as np
 from WENO import weno
 from Isotherm import isotherm
 
-print('Running HeavyReflux function...')    
 
 def func_heavy_reflux(t, state_vars, params, isotherm_params):
     N        = int(params[0])
@@ -33,11 +32,11 @@ def func_heavy_reflux(t, state_vars, params, isotherm_params):
     ndot_HR  = params[34]
 
     # Initialize state variables
-    P  = state_vars[0:N+2]
-    y  = np.maximum(state_vars[N+2:2*N+4], 0)
-    x1 = np.maximum(state_vars[2*N+4:3*N+6], 0)
-    x2 = state_vars[3*N+6:4*N+8]
-    T  = state_vars[4*N+8:5*N+10]
+    P  = state_vars[0:N+2].copy()
+    y  = np.maximum(state_vars[N+2:2*N+4], 0).copy()
+    x1 = np.maximum(state_vars[2*N+4:3*N+6], 0).copy()
+    x2 = state_vars[3*N+6:4*N+8].copy()
+    T  = state_vars[4*N+8:5*N+10].copy()
 
     derivatives = np.zeros(5*N+10)
     dPdt  = np.zeros(N+2)
@@ -99,7 +98,7 @@ def func_heavy_reflux(t, state_vars, params, isotherm_params):
 
     # Spatial derivatives via WENO 
     Ph = weno(P, 'upwind')
-    dpdz[1:-1] = (Ph[1:] - Ph[:-1]) / dz
+    dpdz[1:N+1] = (Ph[1:] - Ph[0:N]) / dz
     dpdzh[1:N] = (P[2:N+1] - P[1:N]) / dz
     dpdzh[0] = 2 * (P[1] - P[0]) / dz
     dpdzh[N] = 2 * (P[N+1] - P[N]) / dz
@@ -126,8 +125,8 @@ def func_heavy_reflux(t, state_vars, params, isotherm_params):
     vh = -np.sign(dpdzh) * (-viscous_term + (np.abs(viscous_term**2 + 4*kinetic_term_h*np.abs(dpdzh)*P_0/L)) **(0.5))/ 2/ kinetic_term_h/v_0
     # LDF Mass transfer and isotherm (assume Isotherm implemented)
     q = isotherm(y, P * P_0, T * T_0, isotherm_params)
-    q_1 = q[:, 0] * ro_s
-    q_2 = q[:, 1] * ro_s
+    q_1 = q[0] * ro_s
+    q_2 = q[1] * ro_s
     k_1 = k_1_LDF * L / v_0
     k_2 = k_2_LDF * L / v_0
     dx1dt[1:N+1] = k_1 * (q_1[1:N+1] / q_s0 - x1[1:N+1])
