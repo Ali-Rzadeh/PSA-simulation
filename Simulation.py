@@ -1,149 +1,229 @@
-from cycle import psa_cycle
-import numpy as np
-import matplotlib.pyplot as plt
+from __future__ import annotations
 
+import argparse
 import time
+from typing import Sequence
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from cycle import psa_cycle
 
 
-start_time = time.time()
-
-type = 'ProcessEvaluation'
-
-#UTSA-16
-#material_property = [1659, -33000, -12000]
-#IsothermParams = [5,3,9.46e-11,6.15e-16,-33000,-48000,12.7,0,4.29e-10,0,-12300,0,0] 
-
-#Zolite13X
-material_property = [1.130000e+03, -3.600000e+04, -1.580000e+04]
-IsothermParams = [3.090000e+00, 2.540000e+00, 8.650000e-07, 2.630000e-08, -3.664121e+04 ,-3.569066e+04, 5.840000e+00 ,0.000000e+00 ,2.500000e-06, 0.000000e+00, -1.580000e+04, 0.000000e+00, 1.000000e+00] 
-
-
-material = [material_property, IsothermParams]
-#material = [SimParam[11, :], IsothermPar[11, :]]  
-N = 30
-type = 'ProcessEvaluation'
-
-
-    # Note: Replace these with your fixed values if not optimizing
-#process_variables = [
- #   1.0,                      #  Bed length or fixed var
- #   1.64e5,  #1.42e5,                     # Column pressure [Pa]
- #   18.897,  #  Utsa = 19.08947,  # Inlet molar flux 
- #   486.53,   #828.3232,                     # Adsorption time [s]
- #   0.1,    #0.11,                     # Light reflux ratio
- #   1.0,                     # Heavy reflux ratio
- #   1.0e4,                      #  Intermediate pressure [Pa]
- #   1.0e4                       # Purge pressure [Pa]
-#]
-
-opt_row = [7.63336e+05, 4.60896e+01, 9.51027e-02, 9.65920e-01, 1.0, 1.04979e+04, 2.94]
-
-process_variables = [
-    1.0,
-    float(opt_row[0]),
-    float(opt_row[0] * opt_row[3] / 8.314 / 313.15),
-    float(opt_row[1]),
-    float(opt_row[2]),
-    float(opt_row[4]),
-    1.0e4,
-    float(opt_row[5]),                   # Purge pressure [Pa]
-]
-
-#process_input_parameters(process_variables, material, N)
-#try:
-purity, recovery, productivity, energy_requirement,b,c,d,e = psa_cycle(process_variables, material, None, type, N)
-
-end_time = time.time()
-print(f"Execution time: {end_time - start_time} seconds")
-print("Purity:", purity)
-print("Recovery:", recovery)
-print("Productivity:", productivity)
-print("Energy Requirement:", energy_requirement)    
-#print("b:", b)
-b2= b[2*N+4:3*N+6,-1]
-c2= c[2*N+4:3*N+6,-1]
-b3= b[2*N+4:3*N+6,0]
-c3= c[2*N+4:3*N+6,0]
+def default_material() -> list[list[float]]:
+    material_property = [1.130000e03, -3.600000e04, -1.580000e04]
+    isotherm_params = [
+        3.090000e00,
+        2.540000e00,
+        8.650000e-07,
+        2.630000e-08,
+        -3.664121e04,
+        -3.569066e04,
+        5.840000e00,
+        0.000000e00,
+        2.500000e-06,
+        0.000000e00,
+        -1.580000e04,
+        0.000000e00,
+        1.000000e00,
+    ]
+    return [material_property, isotherm_params]
 
 
-d4= d[2*N+4:3*N+6,-1]
-e4= e[2*N+4:3*N+6,-1]
-d5= d[2*N+4:3*N+6,0]
-e5= e[2*N+4:3*N+6,0]
-concat = np.concatenate((b2,c2), axis=0)
-plt.plot(concat,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at adsorption step time = end')
-plt.savefig("1solid.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-concat2 = np.concatenate((b3,c3), axis=0)
-plt.plot(concat2,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at adsorption step time = 0')
-plt.savefig("2solid.png")   # saves as PNG in current directory
-
-plt.show()
-
-concat3 = np.concatenate((d4,e4), axis=0)
-plt.plot(concat3,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at desorptiom step time = end')
-plt.savefig("3solid.png")   # saves as PNG in current directory
-
-plt.show()
+def default_process_variables() -> list[float]:
+    opt_row = [7.63336e05, 4.60896e01, 9.51027e-02, 9.65920e-01, 1.0, 1.04979e04, 2.94]
+    return [
+        1.0,
+        float(opt_row[0]),
+        float(opt_row[0] * opt_row[3] / 8.314 / 313.15),
+        float(opt_row[1]),
+        float(opt_row[2]),
+        float(opt_row[4]),
+        1.0e4,
+        float(opt_row[5]),
+    ]
 
 
-concat4 = np.concatenate((d5,e5), axis=0)
-plt.plot(concat4,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at desorption step time = 0')
-plt.savefig("4solid.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-
+def run_psa_cycle(
+    process_variables: Sequence[float],
+    material: Sequence[Sequence[float]],
+    run_type: str,
+    n: int,
+):
+    return psa_cycle(process_variables, material, None, run_type, n)
 
 
+def plot_profiles(b: np.ndarray, c: np.ndarray, d: np.ndarray, e: np.ndarray, n: int, prefix: str) -> None:
+    b2 = b[2 * n + 4 : 3 * n + 6, -1]
+    c2 = c[2 * n + 4 : 3 * n + 6, -1]
+    b3 = b[2 * n + 4 : 3 * n + 6, 0]
+    c3 = c[2 * n + 4 : 3 * n + 6, 0]
+
+    d4 = d[2 * n + 4 : 3 * n + 6, -1]
+    e4 = e[2 * n + 4 : 3 * n + 6, -1]
+    d5 = d[2 * n + 4 : 3 * n + 6, 0]
+    e5 = e[2 * n + 4 : 3 * n + 6, 0]
+    concat = np.concatenate((b2, c2), axis=0)
+    plt.plot(concat, label="CO2 concentration at adsorption")
+    plt.title("CO2 concentration at adsorption step time = end")
+    plt.savefig(f"{prefix}1solid.png")
+    plt.show()
+
+    concat2 = np.concatenate((b3, c3), axis=0)
+    plt.plot(concat2, label="CO2 concentration at adsorption")
+    plt.title("CO2 concentration at adsorption step time = 0")
+    plt.savefig(f"{prefix}2solid.png")
+    plt.show()
+
+    concat3 = np.concatenate((d4, e4), axis=0)
+    plt.plot(concat3, label="CO2 concentration at adsorption")
+    plt.title("CO2 concentration at desorption step time = end")
+    plt.savefig(f"{prefix}3solid.png")
+    plt.show()
+
+    concat4 = np.concatenate((d5, e5), axis=0)
+    plt.plot(concat4, label="CO2 concentration at adsorption")
+    plt.title("CO2 concentration at desorption step time = 0")
+    plt.savefig(f"{prefix}4solid.png")
+    plt.show()
+
+    b2 = b[n + 2 : 2 * n + 4, -1]
+    c2 = c[n + 2 : 2 * n + 4, -1]
+    b3 = b[n + 2 : 2 * n + 4, 0]
+    c3 = c[n + 2 : 2 * n + 4, 0]
+
+    d4 = d[n + 2 : 2 * n + 4, -1]
+    e4 = e[n + 2 : 2 * n + 4, -1]
+    d5 = d[n + 2 : 2 * n + 4, 0]
+    e5 = e[n + 2 : 2 * n + 4, 0]
+    concat = np.concatenate((b2, c2), axis=0)
+    plt.plot(concat, label="CO2 concentration at adsorption")
+    plt.title("gas mole fraction at adsorption step time = end")
+    plt.savefig(f"{prefix}1mole.png")
+    plt.show()
+
+    concat2 = np.concatenate((b3, c3), axis=0)
+    plt.plot(concat2, label="CO2 concentration at adsorption")
+    plt.title("gas mole fraction at adsorption step time = 0")
+    plt.savefig(f"{prefix}2mole.png")
+    plt.show()
+
+    concat3 = np.concatenate((d4, e4), axis=0)
+    plt.plot(concat3, label="CO2 concentration at adsorption")
+    plt.title("gas mole fraction at desorption step time = end")
+    plt.savefig(f"{prefix}3mole.png")
+    plt.show()
+
+    concat4 = np.concatenate((d5, e5), axis=0)
+    plt.plot(concat4, label="CO2 concentration at adsorption")
+    plt.title("gas mole fraction at desorption step time = 0")
+    plt.savefig(f"{prefix}4mole.png")
+    plt.show()
 
 
+def run_base_case(process_variables: Sequence[float], material: Sequence[Sequence[float]], run_type: str, n: int, plot: bool) -> None:
+    start_time = time.time()
+    purity, recovery, productivity, energy_requirement, b, c, d, e = run_psa_cycle(
+        process_variables,
+        material,
+        run_type,
+        n,
+    )
+    end_time = time.time()
+
+    print(f"Execution time: {end_time - start_time} seconds")
+    print("Purity:", purity)
+    print("Recovery:", recovery)
+    print("Productivity:", productivity)
+    print("Energy Requirement:", energy_requirement)
+
+    if plot:
+        plot_profiles(b, c, d, e, n, prefix="")
 
 
-b2= b[N+2:2*N+4,-1]
-c2= c[N+2:2*N+4,-1]
-b3= b[N+2:2*N+4,0]
-c3= c[N+2:2*N+4,0]
+def run_optimization(
+    process_variables: Sequence[float],
+    material: Sequence[Sequence[float]],
+    run_type: str,
+    n: int,
+    purity_target: float,
+    recovery_target: float,
+    plot: bool,
+) -> None:
+    from optimization.ipopt_driver import PsaIpoptProblem
+
+    initial_pressures = [process_variables[1], process_variables[6], process_variables[7]]
+    psa_problem = PsaIpoptProblem(
+        material=material,
+        n=n,
+        run_type=run_type,
+        base_process_variables=process_variables,
+        purity_target=purity_target,
+        recovery_target=recovery_target,
+    )
+
+    solution, info = psa_problem.solve(initial_pressures)
+
+    print("IPOPT status:", info.get("status"))
+    print("Objective value (specific energy):", psa_problem.last_energy)
+    print("Purity:", psa_problem.last_purity)
+    print("Recovery:", psa_problem.last_recovery)
+    print("Optimized pressures (high, intermediate, purge) [Pa]:", solution)
+
+    if plot:
+        optimized_variables = list(process_variables)
+        optimized_variables[1] = float(solution[0])
+        optimized_variables[6] = float(solution[1])
+        optimized_variables[7] = float(solution[2])
+        purity, recovery, productivity, energy_requirement, b, c, d, e = run_psa_cycle(
+            optimized_variables,
+            material,
+            run_type,
+            n,
+        )
+        print("Post-optimization productivity:", productivity)
+        print("Post-optimization energy requirement:", energy_requirement)
+        plot_profiles(b, c, d, e, n, prefix="optimized_")
 
 
-d4= d[N+2:2*N+4,-1]
-e4= e[N+2:2*N+4,-1]
-d5= d[N+2:2*N+4,0]
-e5= e[N+2:2*N+4,0]
-concat = np.concatenate((b2,c2), axis=0)
-plt.plot(concat,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at adsorption step time = end')
-plt.savefig("1mole.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-concat2 = np.concatenate((b3,c3), axis=0)
-plt.plot(concat2,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at adsorption step time = 0')
-plt.savefig("2mole.png")   # saves as PNG in current directory
-
-plt.show()
-
-concat3 = np.concatenate((d4,e4), axis=0)
-plt.plot(concat3,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at desorptiom step time = end')
-plt.savefig("3mole.png")   # saves as PNG in current directory
-
-plt.show()
+def build_argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run or optimize the PSA simulation.")
+    parser.add_argument("--optimize", action="store_true", help="Optimize operating pressures using IPOPT.")
+    parser.add_argument("--purity-target", type=float, default=0.90, help="Minimum CO2 purity for optimization.")
+    parser.add_argument(
+        "--recovery-target",
+        type=float,
+        default=0.90,
+        help="Minimum CO2 recovery for optimization.",
+    )
+    parser.add_argument("--no-plots", action="store_true", help="Skip plotting concentration profiles.")
+    return parser
 
 
-concat4 = np.concatenate((d5,e5), axis=0)
-plt.plot(concat4,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at desorption step time = 0')
-plt.savefig("4mole.png")   # saves as PNG in current directory
+def main() -> None:
+    parser = build_argument_parser()
+    args = parser.parse_args()
 
-plt.show()
+    material = default_material()
+    process_variables = default_process_variables()
+    run_type = "ProcessEvaluation"
+    n = 30
+
+    plot = not args.no_plots
+
+    if args.optimize:
+        run_optimization(
+            process_variables,
+            material,
+            run_type,
+            n,
+            purity_target=args.purity_target,
+            recovery_target=args.recovery_target,
+            plot=plot,
+        )
+    else:
+        run_base_case(process_variables, material, run_type, n, plot=plot)
+
+
+if __name__ == "__main__":
+    main()
