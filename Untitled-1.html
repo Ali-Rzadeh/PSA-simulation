@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Adsorption Model Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MathJax for high-quality LaTeX rendering -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- Chosen Palette: Calm Neutrals -->
+    <!-- Application Structure Plan: A two-column SPA layout. A sticky sidebar provides navigation, which scrolls the main content area to the relevant section. This structure is ideal for a technical document, allowing users to easily jump between model components (Momentum, Energy, etc.) or explore linearly. An IntersectionObserver highlights the active section in the nav. Each model component is presented in tabs ("Equation", "Code", "Reasoning") to reduce clutter and allow users to focus on one aspect at a time. This is more usable than a long, monolithic document. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Overall model structure (PDE coupling). Goal: Organize/Relationships. Viz/Presentation: HTML/Tailwind Diagram. Interaction: None (static diagram). Justification: The report contains no quantitative data suitable for Chart.js. A diagram is the most effective way to visualize the model's structure and variable dependencies, fulfilling the "diagram" and "HTML/CSS graphics" requirement.
+        - Report Info: Mathematical equations (LaTeX). Goal: Inform. Viz/Presentation: HTML/Unicode transcription. Interaction: None. Justification: To render equations without external libraries (like KaTeX) and adhering to the "NO SVG" rule, LaTeX is transcribed into semantic HTML with Unicode entities (e.g., &part;, &rho;).
+        - Report Info: Model sections (e.g., Momentum, Energy). Goal: Organize/Inform. Viz/Presentation: Tabbed content blocks. Interaction: Click to toggle between "Equation", "Code", and "Reasoning". Justification: This interactive structure breaks down complex information into manageable chunks, directly supporting the goal of user understanding and explorability.
+        - Report Info: Nomenclature. Goal: Inform/Organize. Viz/Presentation: Two-column definition list. Interaction: JS-based search/filter. Justification: Makes the list of terms (which acts as a data source) easily searchable and usable.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8fafc; 
+        }
+        /* Removed .latex-frac classes as MathJax handles this now */
+        .nav-link {
+            transition: all 0.2s ease-in-out;
+            border-left: 3px solid transparent;
+        }
+        .nav-link.active {
+            border-left-color: #2563eb; 
+            background-color: #eff6ff; 
+            color: #1d4ed8; 
+            font-weight: 600;
+        }
+        .tab-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .tab-btn.active {
+            background-color: #3b82f6;
+            color: #ffffff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        pre {
+            background-color: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            color: #374151;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <!-- Sidebar Navigation -->
+        <nav class="w-full md:w-64 lg:w-72 bg-white border-r border-gray-200 p-4 md:sticky md:top-0 md:h-screen md:overflow-y-auto">
+            <h2 class="text-xl font-bold text-blue-700 mb-6">Model Explorer</h2>
+            <ul class="space-y-2" id="navigation">
+                <li><a href="#overview" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Overview</a></li>
+                <li><a href="#nomenclature" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Nomenclature</a></li>
+                <li><a href="#momentum" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Momentum Balance</a></li>
+                <li><a href="#solid-mass" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Solid Mass Balance</a></li>
+                <li><a href="#gas-mass" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Gas Mass Balance</a></li>
+                <li><a href="#component-mass" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Component Mass Balance</a></li>
+                <li><a href="#energy" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Energy Balance</a></li>
+                <li><a href="#numerics" class="nav-link block p-3 rounded-lg text-gray-700 hover:bg-gray-100">Numerical Methods</a></li>
+                
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto">
+            
+            <!-- Overview Section -->
+            <section id="overview" class="mb-16 space-y-6 scroll-mt-20">
+                <h1 class="text-4xl font-bold text-gray-900 border-b pb-4">Adsorption Model Overview</h1>
+                <p class="text-lg text-gray-700">
+                    This application provides an interactive guide to the 1D non-isothermal, non-isobaric adsorption model. It's designed to help you explore the complex interplay of equations that govern a packed bed adsorption column. Use the sidebar to navigate between the core components of the model. Each section breaks down the governing equations, the corresponding code implementation, and the physical reasoning behind the formula.
+                </p>
+                <div class="bg-white p-6 rounded-xl shadow-lg border">
+                    <h3 class="text-2xl font-semibold mb-4 text-center">Model Component Coupling</h3>
+                    <p class="text-center text-gray-600 mb-6">This diagram shows how the main variables and equations in the model are interconnected. A change in one component (like Pressure) directly affects all others.</p>
+                    <div class="relative flex flex-col items-center space-y-4">
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                            <div class="border-2 border-blue-500 bg-blue-50 p-4 rounded-lg text-center shadow">
+                                <h4 class="font-bold text-blue-800">Momentum Balance</h4>
+                                <p class="text-sm text-blue-700">(Ergun Eq.)</p>
+                            </div>
+                            <div class="flex items-center justify-center text-2xl font-bold text-gray-500">&rarr;</div>
+                            <div class="border-2 border-gray-400 bg-gray-50 p-4 rounded-lg text-center shadow">
+                                <h4 class="font-bold text-gray-800">Velocity (v)</h4>
+                            </div>
+                        </div>
+
+                        <div class="text-4xl font-thin text-gray-500">&darr;</div>
+
+                        <div class="w-full grid grid-cols-1 md:grid-cols-3 gap-6 p-4 border-2 border-gray-300 rounded-lg bg-gray-50 shadow-inner">
+                            <div class="border-2 border-green-500 bg-green-50 p-4 rounded-lg text-center shadow">
+                                <h4 class="font-bold text-green-800">Gas Mass Balance</h4>
+                                <p class="text-sm text-green-700">Yields: <span class="font-bold">Pressure (P)</span></p>
+                            </div>
+                            <div class="border-2 border-purple-500 bg-purple-50 p-4 rounded-lg text-center shadow">
+                                <h4 class="font-bold text-purple-800">Component Mass</h4>
+                                <p class="text-sm text-purple-700">Yields: <span class="font-bold">Mole Fraction (y)</span></p>
+                            </div>
+                            <div class="border-2 border-red-500 bg-red-50 p-4 rounded-lg text-center shadow">
+                                <h4 class="font-bold text-red-800">Energy Balance</h4>
+                                <p class="text-sm text-red-700">Yields: <span class="font-bold">Temperature (T)</span></p>
+                            </div>
+                        </div>
+
+                        <div class="text-4xl font-thin text-gray-500">&darr;</div>
+
+                        <div class="border-2 border-orange-500 bg-orange-50 p-4 rounded-lg text-center shadow">
+                            <h4 class="font-bold text-orange-800">Solid Mass Balance</h4>
+                            <p class="text-sm text-orange-700">(LDF Model & Isotherm)</p>
+                            <p class="text-sm text-orange-700">Yields: <span class="font-bold">Loading (x<sub>i</sub>)</span></p>
+                        </div>
+                        
+                        <div class="absolute top-1/2 left-0 right-0 flex justify-between items-center w-full" style="z-index: -1;">
+                             <div class="w-1/3 h-px bg-gray-400"></div>
+                             <div class="w-1/3 h-px bg-gray-400"></div>
+                        </div>
+                        <div class="absolute top-1/4 left-1/2 w-px h-3/4 bg-gray-400" style="z-index: -1;"></div>
+                        <p class="text-center text-gray-600 mt-6 italic">All components are fully coupled: <span class="font-semibold">P, v, T, y,</span> and <span class="font-semibold">x<sub>i</sub></span> all depend on each other.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Nomenclature Section -->
+            <section id="nomenclature" class="mb-16 space-y-6 scroll-mt-20">
+                <h1 class="text-4xl font-bold text-gray-900 border-b pb-4">Nomenclature & Groups</h1>
+                <p class="text-lg text-gray-700">
+                    This section defines the key variables and dimensionless groups used in the model. These parameters normalize the equations, making them general. Use the search bar to quickly find any term.
+                </p>
+                <input type="text" id="nomenclature-search" placeholder="Search terms (e.g., 'Pressure', 'z', 'v')..." class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="bg-white p-6 rounded-xl shadow-lg border">
+                    <ul id="nomenclature-list" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">z</strong> <span class="text-gray-700">Normalized spatial coordinate (L)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">t</strong> <span class="text-gray-700">Normalized time (L/v<sub>0</sub>)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">P</strong> <span class="text-gray-700">Normalized pressure (P<sub>0</sub>)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">T</strong> <span class="text-gray-700">Normalized temperature (T<sub>0</sub>)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">v</strong> <span class="text-gray-700">Normalized velocity (v<sub>0</sub>)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">x<sub>i</sub></strong> <span class="text-gray-700">Normalized solid loading (q<sub>s0</sub>)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">&mu;</strong> <span class="text-gray-700">Gas viscosity</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">&epsilon;</strong> <span class="text-gray-700">Bed void fraction (porosity)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">d<sub>p</sub></strong> <span class="text-gray-700">Particle diameter</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">&rho;<sub>g</sub></strong> <span class="text-gray-700">Gas density</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">&rho;<sub>s</sub></strong> <span class="text-gray-700">Solid density</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">q<sub>i</sub>*</strong> <span class="text-gray-700">Equilibrium solid loading</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">q&#773;<sub>i</sub></strong> <span class="text-gray-700">Average solid loading</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">k<sub>LDF,i</sub></strong> <span class="text-gray-700">LDF mass transfer coefficient</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">C<sub>i</sub></strong> <span class="text-gray-700">Gas phase concentration</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">D<sub>L</sub></strong> <span class="text-gray-700">Axial dispersion coefficient</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">Pe</strong> <span class="text-gray-700">Peclet number (vL/D<sub>L</sub>)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">&phi;</strong> <span class="text-gray-700">Capacity ratio (solid/gas)</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">C<sub>bed</sub></strong> <span class="text-gray-700">Effective bed heat capacity</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">C<sub>pg</sub></strong> <span class="text-gray-700">Gas heat capacity</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">C<sub>ps</sub></strong> <span class="text-gray-700">Solid heat capacity</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">C<sub>pa</sub></strong> <span class="text-gray-700">Adsorbed phase heat capacity</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">K<sub>z</sub></strong> <span class="text-gray-700">Axial thermal conductivity</span></li>
+                        <li class="border-b py-2"><strong class="w-32 inline-block text-gray-900">&Delta;H<sub>ads,i</sub></strong> <span class="text-gray-700">Heat of adsorption</span></li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Model Component Sections -->
+            <div id="model-components" class="space-y-16">
+                
+                <!-- Momentum Balance -->
+                <section id="momentum" class="scroll-mt-20">
+                    <h1 class="text-4xl font-bold text-gray-900 border-b pb-4 mb-6">Momentum Balance (Ergun Eq.)</h1>
+                    <p class="text-lg text-gray-700 mb-6">
+                        This section details the Ergun Equation, which governs the fluid's velocity through the packed bed based on the pressure gradient. It is a fundamental component that links the system's pressure (from the Gas Mass Balance) to the flow (v), which is required for all convective transport terms. The model assumes this balance is in Quasi-Steady State (QSS), meaning velocity instantaneously adjusts to pressure changes.
+                    </p>
+                    <div class="interactive-tabs bg-white rounded-xl shadow-lg border">
+                        <div class="flex border-b border-gray-200 rounded-t-xl overflow-hidden">
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 active" data-target="momentum-eq">Equation</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="momentum-code">Code</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="momentum-reason">Reasoning</button>
+                        </div>
+                        <div class="p-6 md:p-8">
+                            <div id="momentum-eq" class="tab-content active space-y-4 overflow-x-auto">
+                                <h3 class="text-xl font-semibold">Ergun Equation</h3>
+                                <div class="text-lg text-center p-4">
+                                    $$ -\frac{dP}{dz} = \color{blue}{\frac{150 \mu (1-\epsilon)^2}{d_p^2 \epsilon^3} v} + \color{green}{\frac{1.75 \rho_g (1-\epsilon)}{d_p \epsilon^3} v^2} $$
+                                </div>
+                                <div class="flex justify-around text-center">
+                                    <span class="text-blue-600">Viscous Term (Blake-Kozeny)</span>
+                                    <span class="text-green-600">Kinetic Term (Burke-Plummer)</span>
+                                </div>
+                            </div>
+                            <div id="momentum-code" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Code Implementation (Velocity at Faces)</h3>
+                                <pre>
+ro_gh = (P_0/R/T_0) * Ph / Th
+viscous_term = 150*mu*(1-epsilon)**2/4/r_p**2/epsilon**2
+kinetic_term_h = (ro_gh * (MW_N2 + (MW_CO2 - MW_N2)*yh)) * (1.75*(1-epsilon)/2/r_p/epsilon)
+vh = -np.sign(dpdzh) * (-viscous_term + (np.abs(viscous_term**2 + 4*kinetic_term_h*np.abs(dpdzh)*P_0/L)) **(0.5))/ 2/ kinetic_term_h/v_0</pre>
+                            </div>
+                            <div id="momentum-reason" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Reasoning</h3>
+                                <p class="text-gray-700 leading-relaxed">
+                                    The momentum balance is assumed to be in **Quasi-Steady State (QSS)**. This is a common and valid assumption because the dynamics of pressure wave propagation (which travel at the speed of sound) are much faster than the dynamics of mass transfer fronts.
+                                    <br><br>
+                                    This means the velocity profile instantaneously adjusts to any change in the pressure gradient. Instead of solving a complex PDE for momentum, the code solves the algebraic Ergun equation (which is quadratic in velocity) at each cell face (`vh`) at every time step using the current pressure gradient (`dpdzh`).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Solid Mass Balance -->
+                <section id="solid-mass" class="scroll-mt-20">
+                    <h1 class="text-4xl font-bold text-gray-900 border-b pb-4 mb-6">Solid Phase Mass Balance (LDF)</h1>
+                    <p class="text-lg text-gray-700 mb-6">
+                        This equation models the rate at which components are adsorbed onto the solid particles. It uses the **Linear Driving Force (LDF)** approximation, which is a computationally efficient way to model intraparticle diffusion. The rate of adsorption (`&part;x/&part;t`) is proportional to the difference between the equilibrium loading (`q*`) and the current average loading (`x`).
+                    </p>
+                    <div class="interactive-tabs bg-white rounded-xl shadow-lg border">
+                        <div class="flex border-b border-gray-200 rounded-t-xl overflow-hidden">
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 active" data-target="solid-mass-eq">Equation</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="solid-mass-code">Code</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="solid-mass-reason">Reasoning</button>
+                        </div>
+                        <div class="p-6 md:p-8">
+                            <div id="solid-mass-eq" class="tab-content active space-y-4 overflow-x-auto">
+                                <h3 class="text-xl font-semibold">LDF Equation</h3>
+                                <div class="text-lg text-center p-2">
+                                    $$ \frac{\partial \bar{q}_i}{\partial t} = k_{LDF, i} (q_i^* - \bar{q}_i) $$
+                                </div>
+                                <h3 class="text-xl font-semibold">Dimensionless Form</h3>
+                                <div class="text-lg text-center p-2">
+                                    $$ \frac{\partial x_i}{\partial t} = \frac{k_{LDF} L}{v_0} \left( \frac{q_i^*}{q_{s0}} - x_i \right) $$
+                                </div>
+                            </div>
+                            <div id="solid-mass-code" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Code Implementation</h3>
+                                <pre>
+q = isotherm(y, P*P_0, T*T_0, isotherm_params)
+q_1 = q[0]*ro_s
+q_2 = q[1]*ro_s
+k_1 = k_1_LDF*L/v_0
+k_2 = k_2_LDF*L/v_0
+dx1dt[1:N+1] = k_1*(q_1[1:N+1]/q_s0 - x1[1:N+1])
+dx2dt[1:N+1] = k_2*(q_2[1:N+1]/q_s0 - x2[1:N+1])</pre>
+                            </div>
+                            <div id="solid-mass-reason" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Reasoning</h3>
+                                <p class="text-gray-700 leading-relaxed">
+                                    Precisely modeling diffusion *inside* each adsorbent particle would require solving another PDE for the particle's radius, which is computationally expensive.
+                                    <br><br>
+                                    The **LDF model** is a common approximation that lumps all intraparticle mass transfer resistance (pore diffusion, surface diffusion) into a single coefficient, `k_LDF`. It assumes the adsorption rate is linearly proportional to the "driving force" — the difference between the solid-phase concentration at equilibrium with the local gas (q*) and the actual average concentration in the solid (q&#773;). This provides a good balance of accuracy and computational efficiency.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Gas Mass Balance -->
+                <section id="gas-mass" class="scroll-mt-20">
+                    <h1 class="text-4xl font-bold text-gray-900 border-b pb-4 mb-6">Gas Phase Mass Balance (Pressure)</h1>
+                    <p class="text-lg text-gray-700 mb-6">
+                        This is the total mass balance (or continuity equation) for the gas phase, rearranged to solve for the change in Pressure (`&part;P/&part;t`). This is crucial in a non-isobaric model because density changes significantly. The change in pressure is driven by three main factors: convective flow, mass transfer to the solid (sorption), and thermal expansion/contraction.
+                    </p>
+                    <div class="interactive-tabs bg-white rounded-xl shadow-lg border">
+                        <div class="flex border-b border-gray-200 rounded-t-xl overflow-hidden">
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 active" data-target="gas-mass-eq">Equation</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="gas-mass-code">Code</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="gas-mass-reason">Reasoning</button>
+                        </div>
+                        <div class="p-6 md:p-8">
+                            <div id="gas-mass-eq" class="tab-content active space-y-4 overflow-x-auto">
+                                <h3 class="text-xl font-semibold">Continuity Equation (Original)</h3>
+                                <div class="text-lg text-center p-2">
+                                    $$ \epsilon \frac{\partial \rho_g}{\partial t} + \frac{\partial (\rho_g v)}{\partial z} = - \sum_{i} (1-\epsilon) \rho_s \frac{\partial \bar{q}_i}{\partial t} $$
+                                </div>
+                                <h3 class="text-xl font-semibold">Resulting Pressure Equation (Implemented)</h3>
+                                <div class="text-lg text-center p-2">
+                                    $$ \frac{\partial P}{\partial t} = \color{blue}{- T \frac{\partial}{\partial z} \left( \frac{P v}{T} \right)} \color{red}{- \phi T \sum \frac{\partial x_i}{\partial t}} \color{green}{+ \frac{P}{T} \frac{\partial T}{\partial t}} $$
+                                </div>
+                                <div class="flex flex-col md:flex-row justify-around text-center">
+                                    <span class="text-blue-600 p-1">Convection (dPdt1)</span>
+                                    <span class="text-red-600 p-1">Sorption Source (dPdt2)</span>
+                                    <span class="text-green-600 p-1">Thermal Expansion (dPdt3)</span>
+                                </div>
+                            </div>
+                            <div id="gas-mass-code" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Code Implementation</h3>
+                                <pre>
+dPdt1[1:N+1] = -T[1:N+1]*(PvT[1:N+1] - PvT[0:N]) / dz
+dPdt2[1:N+1] = -phi*T[1:N+1]*(dx1dt[1:N+1] + dx2dt[1:N+1])
+dPdt3[1:N+1] = P[1:N+1]*dTdt[1:N+1]/T[1:N+1]
+dPdt[1:N+1] = dPdt1[1:N+1] + dPdt2[1:N+1] + dPdt3[1:N+1]</pre>
+                            </div>
+                            <div id="gas-mass-reason" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Reasoning</h3>
+                                <p class="text-gray-700 leading-relaxed">
+                                    In gas phase systems, especially non-isobaric ones, density (`&rho;<sub>g</sub>`) is not constant. It changes with Pressure and Temperature (via the Ideal Gas Law). Solving the original continuity equation for density is difficult.
+                                    <br><br>
+                                    Instead, the model uses the Ideal Gas Law (`&rho;<sub>g</sub> = P&middot;MW / RT`) to substitute density with pressure. After applying the chain rule and rearranging, we get an explicit equation for the change in Pressure (`&part;P/&part;t`).
+                                    <br><br>
+                                    This formulation directly couples the pressure field to convective flow, the rate of mass loss to the solid (`dxidt`), and temperature changes (`dTdt`).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Component Mass Balance -->
+                <section id="component-mass" class="scroll-mt-20">
+                    <h1 class="text-4xl font-bold text-gray-900 border-b pb-4 mb-6">Component Mass Balance (Mole Fraction)</h1>
+                    <p class="text-lg text-gray-700 mb-6">
+                        This equation tracks the concentration (or mole fraction, `y`) of a specific component in the gas phase. It accounts for movement by convection (bulk flow), spreading by axial dispersion, and removal by adsorption. This is one of the most complex equations as it involves derivatives of products (e.g., `v&middot;C`) where `v`, `P`, and `T` are all variables.
+                    </p>
+                    <div class="interactive-tabs bg-white rounded-xl shadow-lg border">
+                        <div class="flex border-b border-gray-200 rounded-t-xl overflow-hidden">
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 active" data-target="component-mass-eq">Equation</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="component-mass-code">Code</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="component-mass-reason">Reasoning</button>
+                        </div>
+                        <div class="p-6 md:p-8">
+                            <div id="component-mass-eq" class="tab-content active space-y-4 overflow-x-auto">
+                                <h3 class="text-xl font-semibold">Resulting Mole Fraction Equation (Implemented)</h3>
+                                <div class="text-lg text-center p-2">
+                                    $$ \frac{\partial y}{\partial t} = \color{blue}{\frac{1}{Pe} \left[ \frac{\partial^2 y}{\partial z^2} + \left( \frac{\partial y}{\partial z} \frac{\partial P}{\partial z} \frac{1}{P} \right) - \left( \frac{\partial y}{\partial z} \frac{\partial T}{\partial z} \frac{1}{T} \right) \right]} $$
+                                </div>
+                                <div class="text-lg text-center p-2">
+                                    $$ \color{green}{- \frac{T}{P} \frac{\partial}{\partial z} \left( \frac{y P v}{T} \right) + \frac{y T}{P} \frac{\partial}{\partial z} \left( \frac{P v}{T} \right)} $$
+                                </div>
+                                <div class="text-lg text-center p-2">
+                                    $$ \color{red}{+ \frac{\phi T}{P} \left( (y-1) \frac{\partial x_1}{\partial t} + y \frac{\partial x_2}{\partial t} \right)} $$
+                                </div>
+                                <div class="flex flex-col md:flex-row justify-around text-center text-sm">
+                                    <span class="text-blue-600 p-1">Dispersion + Density Correction (dydt1)</span>
+                                    <span class="text-green-600 p-1">Convection (dydt2)</span>
+                                    <span class="text-red-600 p-1">Sorption Source (dydt3)</span>
+                                </div>
+                            </div>
+                            <div id="component-mass-code" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Code Implementation</h3>
+                                <pre>
+dydt1[1:N+1] = (1/Pe) * (d2ydz2[1:N+1] + (dydz[1:N+1]*dpdz[1:N+1]/P[1:N+1]) - (dydz[1:N+1]*dTdz[1:N+1]/T[1:N+1]))
+ypvt = yh * Ph * vh / Th
+dydt2[1:N+1] = -(T[1:N+1]/P[1:N+1]) * ((ypvt[1:N+1] - ypvt[0:N]) - y[1:N+1]*(PvT[1:N+1] - PvT[0:N])) / dz
+dydt3[1:N+1] = (phi*T[1:N+1]/P[1:N+1]) * ((y[1:N+1] - 1)*dx1dt[1:N+1] + y[1:N+1]*dx2dt[1:N+1])
+dydt[1:N+1] = dydt1[1:N+1] + dydt2[1:N+1] + dydt3[1:N+1]</pre>
+                            </div>
+                            <div id="component-mass-reason" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Reasoning</h3>
+                                <p class="text-gray-700 leading-relaxed">
+                                    This equation is derived by converting the component balance from concentration (`C_i`) to mole fraction (`y`) using `C_i = y &middot; C_total = y &middot; (P/RT)`.
+                                    <br><br>
+                                    The "Density Correction" terms in `dydt1` are critical. In simple models, dispersion is just `D &middot; &part;<sup>2</sup>C/&part;z<sup>2</sup>`. However, when density varies along the column (due to `&Delta;P` and `&Delta;T`), the dispersion flux is more complex, leading to the terms involving `&part;P/&part;z` and `&part;T/&part;z`.
+                                    <br><br>
+                                    The convection term (`dydt2`) is also complex because it's the divergence of `(y &middot; &rho; &middot; v)`, where all three are variables. The code uses a form derived from product rule expansion.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Energy Balance -->
+                <section id="energy" class="scroll-mt-20">
+                    <h1 class="text-4xl font-bold text-gray-900 border-b pb-4 mb-6">Energy Balance (Temperature)</h1>
+                    <p class="text-lg text-gray-700 mb-6">
+                        This equation accounts for temperature changes in the column. The total heat capacity of the bed (solid, gas, and adsorbed phase) resists temperature changes. The temperature itself changes due to axial heat conduction/dispersion, convection (flow of hot/cold gas), and the heat generated or consumed by the adsorption process (Heat of Adsorption, `&Delta;H`).
+                    </p>
+                    <div class="interactive-tabs bg-white rounded-xl shadow-lg border">
+                        <div class="flex border-b border-gray-200 rounded-t-xl overflow-hidden">
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 active" data-target="energy-eq">Equation</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="energy-code">Code</button>
+                            <button class="tab-btn flex-1 p-4 font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100" data-target="energy-reason">Reasoning</button>
+                        </div>
+                        <div class="p-6 md:p-8">
+                            <div id="energy-eq" class="tab-content active space-y-4 overflow-x-auto">
+                                <h3 class="text-xl font-semibold">Energy Balance Equation</h3>
+                                <div class="text-lg text-center p-2">
+                                    $$ \color{purple}{C_{bed} \frac{\partial T}{\partial t}} + \color{blue}{\epsilon C_{pg} \frac{\partial (\rho_g v T)}{\partial z}} = \color{green}{K_z \frac{\partial^2 T}{\partial z^2}} + \color{red}{\sum_i (1-\epsilon) \rho_s (-\Delta H_{ads,i}) \frac{\partial \bar{q}_i}{\partial t}} $$
+                                </div>
+                                <div class="flex flex-col md:flex-row justify-around text-center text-sm">
+                                    <span class="text-purple-600 p-1">Accumulation</span>
+                                    <span class="text-blue-600 p-1">Convection</span>
+                                    <span class="text-green-600 p-1">Conduction</span>
+                                    <span class="text-red-600 p-1">Generation</span>
+                                </div>
+                                <h3 class="text-xl font-semibold">Bed Heat Capacity (Sink Term)</h3>
+                                <div class="text-lg text-center p-2">
+                                    $$ C_{bed} = (1-\epsilon)(\rho_s C_{ps} + C_{pa} q_{total}) + \epsilon \rho_g C_{pg} $$
+                                </div>
+                            </div>
+                            <div id="energy-code" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Code Implementation</h3>
+                                <pre>
+sink_term = (1-epsilon)*(ro_s*C_ps + q_s0*C_pa) + (epsilon*ro_g[1:N+1]*C_pg)
+transfer_term = K_z/v_0/L
+dTdt1[1:N+1] = transfer_term * d2Tdz2[1:N+1] / sink_term
+
+PvT = Ph * vh / Th
+Pv = Ph * vh
+dTdt2[1:N+1] = -epsilon*C_pg*P_0/R/T_0 * ((Pv[1:N+1] - Pv[0:N]) - T[1:N+1]*(PvT[1:N+1] - PvT[0:N])) / dz / sink_term
+
+generation_term_1 = (1-epsilon)*q_s0*(-(deltaU_1 - R*T[1:N+1]*T_0))/T_0
+generation_term_2 = (1-epsilon)*q_s0*(-(deltaU_2 - R*T[1:N+1]*T_0))/T_0
+dTdt3[1:N+1] = (generation_term_1*dx1dt[1:N+1] + generation_term_2*dx2dt[1:N+1]) / sink_term
+dTdt[1:N+1] = dTdt1[1:N+1] + dTdt2[1:N+1] + dTdt3[1:N+1]</pre>
+                            </div>
+                            <div id="energy-reason" class="tab-content">
+                                <h3 class="text-xl font-semibold mb-4">Reasoning</h3>
+                                <p class="text-gray-700 leading-relaxed">
+                                    This equation is a standard heat balance. The `sink_term` represents the total thermal mass of a slice of the bed—it includes the heat capacity of the solid (`C_ps`), the gas (`C_pg`), and importantly, the adsorbed phase itself (`C_pa`). This last term is often omitted in simple models but is included here for accuracy.
+                                    <br><br>
+                                    `dTdt1` is the axial heat conduction (or thermal dispersion).
+                                    <br>
+                                    `dTdt2` is the heat moved by convection, derived from the divergence of enthalpy flow.
+                                    <br>
+                                    `dTdt3` is the heat generation. Adsorption is (usually) exothermic, so `&Delta;H` (or `deltaU`) is negative, causing the term to be positive (a heat source) when adsorption occurs (`dx/dt > 0`).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Numerical Methods -->
+            <section id="numerics" class="mb-16 space-y-6 scroll-mt-20">
+                <h1 class="text-4xl font-bold text-gray-900 border-b pb-4">Numerical Methods</h1>
+                <p class="text-lg text-gray-700">
+                    This section briefly describes the numerical techniques used to solve the partial differential equations (PDEs) described in the previous sections. The choice of method is critical for handling the sharp concentration and temperature "fronts" (or shock waves) that form in adsorption columns.
+                </p>
+                <div class="bg-white p-6 rounded-xl shadow-lg border space-y-4">
+                    <div>
+                        <h3 class="text-2xl font-semibold">WENO (Weighted Essentially Non-Oscillatory)</h3>
+                        <p class="text-gray-700 mt-2">
+                            The code uses a WENO scheme to calculate the values of `P`, `y`, and `T` at the cell faces (e.g., `Ph`, `yh`, `Th`). This is a high-order finite volume method designed specifically for problems with shocks or sharp gradients.
+                            <br><br>
+                            Simpler methods (like central differences) would introduce non-physical oscillations around the shock front, while standard "upwind" schemes would smear out the front due to numerical diffusion. WENO provides a high-order, sharp, and non-oscillatory solution.
+                        </p>
+                    </div>
+                    <div class="border-t pt-4">
+                        <h3 class="text-2xl font-semibold">Upwind Scheme</h3>
+                        <p class="text-gray-700 mt-2">
+                            The `weno(..., 'upwind')` call indicates that the scheme is "biased" in the direction of flow. In a flow-dominated (advective) system, information primarily travels downstream. An upwind scheme correctly sources information from the cell "upwind" of the flow, which is physically correct and numerically stable.
+                        </p>
+                    </div>
+                </div>
+            </section>
+            
+
+
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const navigationLinks = document.querySelectorAll('#navigation a');
+            const sections = document.querySelectorAll('main section');
+            const tabsContainer = document.querySelectorAll('.interactive-tabs');
+            const searchInput = document.getElementById('nomenclature-search');
+            const nomenclatureList = document.getElementById('nomenclature-list').querySelectorAll('li');
+
+            // --- Tabbed Content ---
+            tabsContainer.forEach(container => {
+                const buttons = container.querySelectorAll('.tab-btn');
+                const contents = container.querySelectorAll('.tab-content');
+
+                buttons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        buttons.forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+
+                        const targetId = button.getAttribute('data-target');
+                        
+                        contents.forEach(content => {
+                            if (content.id === targetId) {
+                                content.classList.add('active');
+                            } else {
+                                content.classList.remove('active');
+                            }
+                        });
+                    });
+                });
+            });
+
+            // --- Scrollspy for Navigation ---
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.3 
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.getAttribute('id');
+                        navigationLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === `#${id}`) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            sections.forEach(section => {
+                observer.observe(section);
+            });
+
+            // --- Nomenclature Search ---
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                nomenclatureList.forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    if (text.includes(searchTerm)) {
+                        item.style.display = 'list-item';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+
+        });
+    </script>
+</body>
+</html>
