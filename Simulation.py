@@ -51,7 +51,7 @@ process_variables = [
 
 #process_input_parameters(process_variables, material, N)
 #try:
-purity, recovery, productivity, energy_requirement,b,c,d,e = psa_cycle(process_variables, material, None, type, N)
+purity, recovery, productivity, energy_requirement = psa_cycle(process_variables, material, None, type, N)
 
 end_time = time.time()
 print(f"Execution time: {end_time - start_time} seconds")
@@ -59,91 +59,4 @@ print("Purity:", purity)
 print("Recovery:", recovery)
 print("Productivity:", productivity)
 print("Energy Requirement:", energy_requirement)    
-#print("b:", b)
-b2= b[2*N+4:3*N+6,-1]
-c2= c[2*N+4:3*N+6,-1]
-b3= b[2*N+4:3*N+6,0]
-c3= c[2*N+4:3*N+6,0]
 
-
-d4= d[2*N+4:3*N+6,-1]
-e4= e[2*N+4:3*N+6,-1]
-d5= d[2*N+4:3*N+6,0]
-e5= e[2*N+4:3*N+6,0]
-concat = np.concatenate((b2,c2), axis=0)
-plt.plot(concat,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at adsorption step time = end')
-plt.savefig("1solid.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-concat2 = np.concatenate((b3,c3), axis=0)
-plt.plot(concat2,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at adsorption step time = 0')
-plt.savefig("2solid.png")   # saves as PNG in current directory
-
-plt.show()
-
-concat3 = np.concatenate((d4,e4), axis=0)
-plt.plot(concat3,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at desorptiom step time = end')
-plt.savefig("3solid.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-concat4 = np.concatenate((d5,e5), axis=0)
-plt.plot(concat4,label='CO2 concentration at adsorptiom')
-plt.title('CO2 concentration at desorption step time = 0')
-plt.savefig("4solid.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-
-
-
-
-
-
-
-b2= b[N+2:2*N+4,-1]
-c2= c[N+2:2*N+4,-1]
-b3= b[N+2:2*N+4,0]
-c3= c[N+2:2*N+4,0]
-
-
-d4= d[N+2:2*N+4,-1]
-e4= e[N+2:2*N+4,-1]
-d5= d[N+2:2*N+4,0]
-e5= e[N+2:2*N+4,0]
-concat = np.concatenate((b2,c2), axis=0)
-plt.plot(concat,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at adsorption step time = end')
-plt.savefig("1mole.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-concat2 = np.concatenate((b3,c3), axis=0)
-plt.plot(concat2,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at adsorption step time = 0')
-plt.savefig("2mole.png")   # saves as PNG in current directory
-
-plt.show()
-
-concat3 = np.concatenate((d4,e4), axis=0)
-plt.plot(concat3,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at desorptiom step time = end')
-plt.savefig("3mole.png")   # saves as PNG in current directory
-
-plt.show()
-
-
-concat4 = np.concatenate((d5,e5), axis=0)
-plt.plot(concat4,label='CO2 concentration at adsorptiom')
-plt.title('gas mole fraction at desorption step time = 0')
-plt.savefig("4mole.png")   # saves as PNG in current directory
-
-plt.show()
